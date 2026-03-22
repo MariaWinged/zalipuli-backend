@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: Water Sort API
+  version: 0.1.0
+
+paths:
+  /watersort/health:
+    get:
+      operationId: getWatersortHealth
+      summary: Healthcheck
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /watersort/levels/start:
+    post:
+      operationId: postWatersortLevelsStart
+      summary: Generate a new Water Sort level
+      responses:
+        '201':
+          description: Level created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LevelResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /watersort/levels/{levelId}:
+    get:
+      operationId: getWatersortLevelsLevelId
+      summary: Get level by id
+      parameters:
+        - name: levelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Level found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LevelResponse'
+        '404':
+          description: Level not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /watersort/levels/finish:
+    post:
+      operationId: finishWatersortLevelsLevelId
+      summary: Delete level by id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref:
+                '#/components/schemas/FinishLevelRequest'
+      responses:
+        '204':
+          description: Level deleted
+        '404':
+          description: Level not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /watersort/levels/hint:
+    post:
+      operationId: postWatersortLevelsHint
+      summary: Get hint for level
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref:
+                '#/components/schemas/HintRequest'
+      responses:
+        '200':
+          description: Hint found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HintResponse'
+
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: ok
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+
+    LevelResponse:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          example: 6c9ec2e6f0a14b2e93fcbcf85e4e3e1d
+        colorsCount:
+          type: integer
+          minimum: 5
+          maximum: 12
+        position:
+          $ref: '#/components/schemas/Position'
+        status:
+          type: string
+          enum:
+            - new
+            - pending
+            - ready
+
+    Position:
+      type: array
+      description: Array of flasks, each flask is an array of colors from bottom to top
+      items:
+        type: array
+        items:
+          type: integer
+          minimum: 1
+          maximum: 12
+
+    HintRequest:
+        type: object
+        required:
+          - levelId
+          - position
+        properties:
+          levelId:
+            type: string
+          position:
+            $ref: '#/components/schemas/Position'
+
+    HintResponse:
+      type: object
+      required:
+        - isSuccess
+        - flaskFrom
+        - flaskTo
+      properties:
+        isSuccess:
+          type: boolean
+        flaskFrom:
+          type: integer
+        flaskTo:
+          type: integer
+
+    FinishLevelRequest:
+      type: object
+      required:
+        - levelId
+      properties:
+        levelId:
+          type: string
