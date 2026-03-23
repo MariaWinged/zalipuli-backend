@@ -25,29 +25,29 @@ func NewWaterSortLevel() *WaterSortLevel {
 		allSegments[i], allSegments[j] = allSegments[j], allSegments[i]
 	})
 
-	flasks := make([]Vial, colorsCount+2)
+	vials := make([]Vial, colorsCount+2)
 	for i := 0; i < colorsCount; i++ {
-		flasks[i] = NewVial(allSegments[i*VialHeight : i*VialHeight+VialHeight])
+		vials[i] = NewVial(allSegments[i*VialHeight : i*VialHeight+VialHeight])
 	}
-	flasks[colorsCount] = NewVial(nil)
-	flasks[colorsCount+1] = NewVial(nil)
-	rand.Shuffle(len(flasks), func(i, j int) {
-		flasks[i], flasks[j] = flasks[j], flasks[i]
+	vials[colorsCount] = NewVial(nil)
+	vials[colorsCount+1] = NewVial(nil)
+	rand.Shuffle(len(vials), func(i, j int) {
+		vials[i], vials[j] = vials[j], vials[i]
 	})
 
-	apiFlasks := make([][]uint8, colorsCount+2)
-	for i, flask := range flasks {
-		apiFlasks[i] = flask.Segments()
+	apiVials := make([][]uint8, colorsCount+2)
+	for i, vial := range vials {
+		apiVials[i] = vial.Segments()
 	}
 
 	// теперь формируем стартовую позицию, граф и уровень
-	startPosition := NewPosition(flasks)
+	startPosition := NewPosition(vials)
 
 	level := &WaterSortLevel{
 		id:            uuid.NewString(),
 		graph:         NewGraph(startPosition),
 		isCorrect:     true,
-		startPosition: apiFlasks,
+		startPosition: apiVials,
 		colorsCount:   uint8(colorsCount),
 	}
 
@@ -89,32 +89,32 @@ func (l *WaterSortLevel) StartPosition() [][]uint8 {
 	return l.startPosition
 }
 
-func (l *WaterSortLevel) Hint(apiFlasks [][]uint8) (int8, int8) {
+func (l *WaterSortLevel) Hint(apiVials [][]uint8) (int8, int8) {
 	if !l.isCorrect || !l.graph.IsBuilt() {
 		return -1, -1
 	}
 
-	flasks := make([]Vial, 0, len(apiFlasks))
-	for _, flask := range apiFlasks {
-		flasks = append(flasks, NewVial(flask))
+	vials := make([]Vial, 0, len(apiVials))
+	for _, vial := range apiVials {
+		vials = append(vials, NewVial(vial))
 	}
 
-	position := NewPosition(flasks)
+	position := NewPosition(vials)
 	nextPosition, err := l.graph.GetSuccessStep(position)
 	if err != nil {
 		return -1, -1
 	}
 
-	fromFlask, toFlask := position.GetStepVials(nextPosition)
-	if fromFlask == 0 && toFlask == 0 {
+	fromVial, toVial := position.GetStepVials(nextPosition)
+	if fromVial == 0 && toVial == 0 {
 		return -1, -1
 	}
 
 	var from, to int8
-	for i, flask := range flasks {
-		if flask == fromFlask {
+	for i, vial := range vials {
+		if vial == fromVial {
 			from = int8(i)
-		} else if flask == toFlask {
+		} else if vial == toVial {
 			to = int8(i)
 		}
 	}

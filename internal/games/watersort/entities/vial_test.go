@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFlaskSegments(t *testing.T) {
+func TestVialSegments(t *testing.T) {
 	for i := 0; i < (1 << 16); i++ {
-		flask := Vial(i)
-		segments := flask.Segments()
+		vial := Vial(i)
+		segments := vial.Segments()
 
-		newFlask := NewVial(segments)
-		require.Equal(t, flask, newFlask)
+		newVial := NewVial(segments)
+		require.Equal(t, vial, newVial)
 	}
 }

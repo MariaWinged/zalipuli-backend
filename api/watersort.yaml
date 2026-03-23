@@ -129,8 +129,8 @@ components:
           type: integer
           minimum: 5
           maximum: 12
-        position:
-          $ref: '#/components/schemas/Position'
+        vials:
+          $ref: '#/components/schemas/Vials'
         status:
           type: string
           enum:
@@ -138,9 +138,9 @@ components:
             - pending
             - ready
 
-    Position:
+    Vials:
       type: array
-      description: Array of flasks, each flask is an array of colors from bottom to top
+      description: Array of vials, each vial is an array of colors from bottom to top
       items:
         type: array
         items:
@@ -156,21 +156,19 @@ components:
         properties:
           levelId:
             type: string
-          position:
-            $ref: '#/components/schemas/Position'
+          vials:
+            $ref: '#/components/schemas/Vials'
 
     HintResponse:
       type: object
       required:
         - isSuccess
-        - flaskFrom
-        - flaskTo
       properties:
         isSuccess:
           type: boolean
-        flaskFrom:
+        vialIndexFrom:
           type: integer
-        flaskTo:
+        vialIndexTo:
           type: integer
 
     FinishLevelRequest:
