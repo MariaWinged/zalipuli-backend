@@ -8,6 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	FillConstants()
+}
+
 func TestNewWaterSortLevel(t *testing.T) {
 	st := storage.New()
 	level := NewWaterSortLevel(st)
@@ -31,8 +35,6 @@ func TestWaterSortLevelHint(t *testing.T) {
 }
 
 func waitForGraphBuilt(level *Level) {
-	FillConstants()
-
 	for retry := 0; level.Status() != "ready" && retry < 10; retry++ {
 		time.Sleep(500 * time.Millisecond)
 	}
