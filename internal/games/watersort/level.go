@@ -1,7 +1,9 @@
 package watersort
 
 import (
+	"encoding/json"
 	"errors"
+	"log"
 	"math/rand"
 	"zalipuli/internal/storage"
 	"zalipuli/pkg/api"
@@ -10,14 +12,21 @@ import (
 )
 
 type Level struct {
-	id            string
-	colorsCount   int
-	graph         *Graph
-	isCorrect     bool
-	startPosition api.Vials
+	id          string
+	colorsCount int
+	graph       *Graph
+	isCorrect   bool
+	startState  api.Vials
+	storage     storage.Storage
 }
 
-func NewWaterSortLevel(storage *storage.Storage) *Level {
+func EmptyWaterSortLevel(st storage.Storage) *Level {
+	return &Level{
+		storage: st,
+	}
+}
+
+func NewWaterSortLevel(storage storage.Storage) *Level {
 	// Случайно выбираем число цветов, заполняем колбы вперемешку, и сами колбы тоже мешаем
 	colorsCount := rand.Intn(MaxColorsCount-MinColorsCount) + MinColorsCount
 	allSegments := make([]int, colorsCount*VialHeight)
@@ -46,24 +55,29 @@ func NewWaterSortLevel(storage *storage.Storage) *Level {
 	// теперь формируем стартовую позицию, граф и уровень
 	startPosition := NewPosition(vials)
 
-	level := &Level{
-		id:            uuid.NewString(),
-		graph:         NewGraph(startPosition),
-		isCorrect:     true,
-		startPosition: apiVials,
-		colorsCount:   colorsCount,
+	l := &Level{
+		id:          uuid.NewString(),
+		graph:       NewGraph(startPosition),
+		isCorrect:   true,
+		startState:  apiVials,
+		colorsCount: colorsCount,
+		storage:     storage,
 	}
 
 	go func() {
-		err := level.graph.Build()
+		err := l.graph.Build()
 		if err != nil {
-			level.isCorrect = false
+			l.isCorrect = false
 		}
 
-		storage.Save(level)
+		saveErr := l.storage.Save(l)
+		if saveErr != nil {
+			log.Fatalf("failed to save level: %v", saveErr)
+		}
+
 	}()
 
-	return level
+	return l
 }
 
 func (l *Level) Id() string {
@@ -103,7 +117,7 @@ func (l *Level) StartLevelState() (*api.LevelState, error) {
 	err := state.FromWaterSortLevelState(api.WaterSortLevelState{
 		ColorsCount: &l.colorsCount,
 		GameName:    api.Watersort,
-		Vials:       l.startPosition,
+		Vials:       l.startState,
 	})
 	if err != nil {
 		return nil, err
@@ -160,4 +174,58 @@ func (l *Level) Hint(levelState api.LevelState) (*api.HintResponse_Hint, error) 
 	}
 
 	return &hint, nil
+}
+
+func (l *Level) ToJson() (json.RawMessage, error) {
+	graphJson, err := l.graph.ToJson()
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(level{
+		Id:          l.id,
+		ColorsCount: l.colorsCount,
+		Graph:       graphJson,
+		IsCorrect:   l.isCorrect,
+		StartState:  l.startState,
+	})
+}
+
+func (l *Level) FromJson(jsonLvl json.RawMessage) error {
+	lvl := &level{}
+	err := json.Unmarshal(jsonLvl, lvl)
+	if err != nil {
+		return err
+	}
+
+	l.id = lvl.Id
+	l.colorsCount = lvl.ColorsCount
+	l.startState = lvl.StartState
+	l.isCorrect = lvl.IsCorrect
+
+	gr := &Graph{}
+	err = gr.FromJson(lvl.Graph)
+	if err != nil {
+		return err
+	}
+
+	l.graph = gr
+	if !l.graph.IsBuilt() {
+		go func() {
+			errBuild := l.graph.Build()
+			if errBuild != nil {
+				l.isCorrect = false
+			}
+			saveErr := l.storage.Save(l)
+			if saveErr != nil {
+				log.Fatalf("Failed to save level after graph build: %v", saveErr)
+			}
+		}()
+	}
+
+	return nil
+}
+
+func (l *Level) SetStorage(st storage.Storage) {
+	l.storage = st
 }

@@ -3,7 +3,7 @@ package watersort
 import (
 	"testing"
 	"time"
-	"zalipuli/internal/storage"
+	"zalipuli/internal/storage/inmemory"
 
 	"github.com/stretchr/testify/require"
 )
@@ -13,13 +13,13 @@ func init() {
 }
 
 func TestNewWaterSortLevel(t *testing.T) {
-	st := storage.New()
+	st := inmemory.New()
 	level := NewWaterSortLevel(st)
 	waitForGraphBuilt(level)
 }
 
 func TestWaterSortLevelHint(t *testing.T) {
-	st := storage.New()
+	st := inmemory.New()
 	level := NewWaterSortLevel(st)
 	waitForGraphBuilt(level)
 

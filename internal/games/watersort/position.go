@@ -1,8 +1,10 @@
 package watersort
 
 import (
+	"encoding/json"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // Position - сущность, представляющая собой определенный набор флаконов
@@ -118,10 +120,12 @@ func (p *Position) GetPrev() []*Position {
 // Hash - формирует hash-строку позиции: по сути просто записывает все хэши флаконов через слэш
 // По хэшам позиции можно сравнивать между собой
 func (p *Position) Hash() string {
-	var hash string
-	for _, vial := range p.vials {
-		hash += strconv.Itoa(int(vial)) + "/"
+	strVials := make([]string, len(p.vials))
+	for i, vial := range p.vials {
+		strVials[i] = strconv.Itoa(int(vial))
 	}
+
+	hash := strings.Join(strVials, "/")
 
 	return hash
 }
@@ -181,4 +185,49 @@ func (p *Position) GetStepVials(nextPosition *Position) (from Vial, to Vial) {
 
 	// вариант на случай, если nextPosition была передана не валидно
 	return 0, 0
+}
+
+func (p *Position) ToJson() (json.RawMessage, error) {
+	nextPositions := make([]string, len(p.nextPositions))
+	for i, nextPos := range p.nextPositions {
+		nextPositions[i] = nextPos.Hash()
+	}
+
+	return json.Marshal(position{
+		Hash:          p.Hash(),
+		IsSuccessWay:  p.IsSuccessWay(),
+		NextPositions: nextPositions,
+	})
+}
+
+func (p *Position) FromHash(hash string) error {
+	strVials := strings.Split(hash, "/")
+	vials := make([]Vial, len(strVials))
+	for i, strVial := range strVials {
+		vial, err := strconv.Atoi(strVial)
+		if err != nil {
+			return err
+		}
+		vials[i] = Vial(vial)
+	}
+	p.vials = vials
+	p.nextPositions = make([]*Position, 0)
+
+	return nil
+}
+
+func (p *Position) FromJson(jsonPos json.RawMessage) ([]string, error) {
+	pos := position{}
+	err := json.Unmarshal(jsonPos, &pos)
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.FromHash(pos.Hash)
+	if err != nil {
+		return nil, err
+	}
+	p.isSuccessWay = pos.IsSuccessWay
+
+	return pos.NextPositions, nil
 }

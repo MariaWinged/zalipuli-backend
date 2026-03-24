@@ -2,7 +2,7 @@ BINARY   := server
 MODULE   := zalipuli
 IMAGE    := $(MODULE)
 
-.PHONY: all build run generate test lint tidy clean docker-build docker-run
+.PHONY: all build run generate test lint tidy clean docker-build docker-run compose-up compose-down
 
 all: generate build
 
@@ -48,3 +48,11 @@ docker-build:
 ## Run Docker container (reads PORT from env, defaults to 8080)
 docker-run:
 	docker run --rm -p $${PORT:-8080}:$${PORT:-8080} -e PORT=$${PORT:-8080} $(IMAGE)
+
+## Start docker-compose stack
+compose-up:
+	docker-compose up -d
+
+## Stop docker-compose stack
+compose-down:
+	docker-compose down

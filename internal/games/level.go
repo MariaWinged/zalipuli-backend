@@ -1,6 +1,9 @@
 package games
 
-import "zalipuli/pkg/api"
+import (
+	"encoding/json"
+	"zalipuli/pkg/api"
+)
 
 type Level interface {
 	Id() string
@@ -9,4 +12,6 @@ type Level interface {
 	StartLevelState() (*api.LevelState, error)
 	Hint(levelState api.LevelState) (*api.HintResponse_Hint, error)
 	MinSteps() (*int, error)
+	ToJson() (json.RawMessage, error)
+	FromJson(json.RawMessage) error
 }

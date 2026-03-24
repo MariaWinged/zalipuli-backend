@@ -4,17 +4,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"zalipuli/internal/games"
+	"zalipuli/internal/storage"
 
 	ws "zalipuli/internal/games/watersort"
-	"zalipuli/internal/storage"
 	api "zalipuli/pkg/api"
 )
 
 type ZalipuliApi struct {
-	storage *storage.Storage
+	storage storage.Storage
 }
 
-func NewApi(s *storage.Storage) api.ServerInterface {
+func NewApi(s storage.Storage) api.ServerInterface {
 	ws.FillConstants()
 	return &ZalipuliApi{storage: s}
 }
@@ -61,8 +61,8 @@ func (h *ZalipuliApi) PostLevelsStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ZalipuliApi) GetLevel(w http.ResponseWriter, _ *http.Request, levelId string) {
-	level, ok := h.storage.Get(levelId)
-	if !ok {
+	level, err := h.storage.Get(levelId)
+	if err != nil {
 		writeJSON(w, http.StatusNotFound, api.ErrorResponse{Message: "level not found"})
 		return
 	}
@@ -89,7 +89,7 @@ func (h *ZalipuliApi) FinishLevel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.storage.Delete(req.LevelId) {
+	if err := h.storage.Delete(req.LevelId); err != nil {
 		writeJSON(w, http.StatusNotFound, api.ErrorResponse{Message: "level not found"})
 		return
 	}
@@ -104,8 +104,8 @@ func (h *ZalipuliApi) PostLevelsHint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	level, ok := h.storage.Get(req.LevelId)
-	if !ok {
+	level, err := h.storage.Get(req.LevelId)
+	if err != nil {
 		writeJSON(w, http.StatusNotFound, api.ErrorResponse{Message: "level not found"})
 		return
 	}
