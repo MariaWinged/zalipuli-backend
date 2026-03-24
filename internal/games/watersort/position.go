@@ -1,4 +1,4 @@
-package entities
+package watersort
 
 import (
 	"sort"
@@ -32,7 +32,7 @@ func NewPosition(vials []Vial) *Position {
 }
 
 // CanTransfuse проверяет, можно ли перелить воду из флакона from в флакон to
-func (p *Position) CanTransfuse(from, to uint8) bool {
+func (p *Position) CanTransfuse(from, to int) bool {
 	if from == to {
 		return false
 	}
@@ -49,7 +49,7 @@ func (p *Position) CanTransfuse(from, to uint8) bool {
 
 // Transfuse создает новую позицию путем переливки воды из флакона from в флакон to.
 // Переливается столько сегментов, сколько возможно перелить, от нуля до четырех
-func (p *Position) Transfuse(from, to uint8) *Position {
+func (p *Position) Transfuse(from, to int) *Position {
 	transfusePosition := NewPosition(p.vials)
 
 	defer transfusePosition.normalize()
@@ -63,7 +63,7 @@ func (p *Position) Transfuse(from, to uint8) *Position {
 
 // transfuse переливает воду из флакона from в флакон to
 // у этой операции нет валидации
-func (p *Position) transfuse(from, to uint8) {
+func (p *Position) transfuse(from, to int) {
 	p.vials[to] <<= ColorSize
 	p.vials[to] |= p.vials[from] & (1<<ColorSize - 1)
 	p.vials[from] >>= ColorSize
@@ -169,12 +169,12 @@ func (p *Position) GetStepVials(nextPosition *Position) (from Vial, to Vial) {
 	}
 
 	// дальше проверим, из какого флакона в какой совершалось переливание
-	transfusePosition := p.Transfuse(uint8(changes[0]), uint8(changes[1]))
+	transfusePosition := p.Transfuse(changes[0], changes[1])
 	if transfusePosition.Hash() == nextPosition.Hash() {
 		return p.vials[changes[0]], p.vials[changes[1]]
 	}
 
-	transfusePosition = p.Transfuse(uint8(changes[1]), uint8(changes[0]))
+	transfusePosition = p.Transfuse(changes[1], changes[0])
 	if transfusePosition.Hash() == nextPosition.Hash() {
 		return p.vials[changes[1]], p.vials[changes[0]]
 	}

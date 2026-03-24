@@ -1,4 +1,4 @@
-package entities
+package watersort
 
 import "slices"
 
@@ -8,7 +8,7 @@ import "slices"
 type Vial uint16
 
 // NewVial - создает новую флакон из сегментов
-func NewVial(segments []uint8) Vial {
+func NewVial(segments []int) Vial {
 	var hash uint16
 	for _, segment := range segments {
 		hash <<= ColorSize
@@ -19,10 +19,10 @@ func NewVial(segments []uint8) Vial {
 }
 
 // Segments - возвращает сегменты флакона
-func (f Vial) Segments() []uint8 {
-	segments := make([]uint8, 0)
+func (f Vial) Segments() []int {
+	segments := make([]int, 0)
 	for f > 0 {
-		segment := uint8(f & (1<<ColorSize - 1))
+		segment := int(f & (1<<ColorSize - 1))
 		segments = append(segments, segment)
 		f >>= ColorSize
 	}
@@ -32,13 +32,13 @@ func (f Vial) Segments() []uint8 {
 }
 
 // LastSegment - возвращает последний сегмент флакона. Если флакон пуст, возвращает 0
-func (f Vial) LastSegment() uint8 {
-	return uint8(f & (1<<ColorSize - 1))
+func (f Vial) LastSegment() int {
+	return int(f & (1<<ColorSize - 1))
 }
 
 // Len - возвращает количество сегментов в флаконе
-func (f Vial) Len() uint8 {
-	var l uint8
+func (f Vial) Len() int {
+	var l int
 
 	for ; f > 0; l++ {
 		f >>= ColorSize

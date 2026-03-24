@@ -1,4 +1,4 @@
-package entities
+package watersort
 
 const (
 	// VialHeight - высота флакона (количество сегментов)

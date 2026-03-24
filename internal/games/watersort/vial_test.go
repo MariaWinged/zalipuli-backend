@@ -1,4 +1,4 @@
-package entities
+package watersort
 
 import (
 	"testing"

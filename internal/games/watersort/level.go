@@ -1,25 +1,28 @@
-package entities
+package watersort
 
 import (
+	"errors"
 	"math/rand"
+	"zalipuli/internal/storage"
+	"zalipuli/pkg/api"
 
 	"github.com/google/uuid"
 )
 
-type WaterSortLevel struct {
+type Level struct {
 	id            string
-	colorsCount   uint8
+	colorsCount   int
 	graph         *Graph
 	isCorrect     bool
-	startPosition [][]uint8
+	startPosition api.Vials
 }
 
-func NewWaterSortLevel() *WaterSortLevel {
+func NewWaterSortLevel(storage *storage.Storage) *Level {
 	// Случайно выбираем число цветов, заполняем колбы вперемешку, и сами колбы тоже мешаем
 	colorsCount := rand.Intn(MaxColorsCount-MinColorsCount) + MinColorsCount
-	allSegments := make([]uint8, colorsCount*VialHeight)
+	allSegments := make([]int, colorsCount*VialHeight)
 	for i := 0; i < len(allSegments); i++ {
-		allSegments[i] = uint8(i/VialHeight) + 1
+		allSegments[i] = i/VialHeight + 1
 	}
 	rand.Shuffle(len(allSegments), func(i, j int) {
 		allSegments[i], allSegments[j] = allSegments[j], allSegments[i]
@@ -35,7 +38,7 @@ func NewWaterSortLevel() *WaterSortLevel {
 		vials[i], vials[j] = vials[j], vials[i]
 	})
 
-	apiVials := make([][]uint8, colorsCount+2)
+	apiVials := make(api.Vials, colorsCount+2)
 	for i, vial := range vials {
 		apiVials[i] = vial.Segments()
 	}
@@ -43,12 +46,12 @@ func NewWaterSortLevel() *WaterSortLevel {
 	// теперь формируем стартовую позицию, граф и уровень
 	startPosition := NewPosition(vials)
 
-	level := &WaterSortLevel{
+	level := &Level{
 		id:            uuid.NewString(),
 		graph:         NewGraph(startPosition),
 		isCorrect:     true,
 		startPosition: apiVials,
-		colorsCount:   uint8(colorsCount),
+		colorsCount:   colorsCount,
 	}
 
 	go func() {
@@ -56,43 +59,70 @@ func NewWaterSortLevel() *WaterSortLevel {
 		if err != nil {
 			level.isCorrect = false
 		}
+
+		storage.Save(level)
 	}()
 
 	return level
 }
 
-func (l *WaterSortLevel) Id() string {
+func (l *Level) Id() string {
 	return l.id
 }
 
-func (l *WaterSortLevel) Status() string {
+func (l *Level) Status() api.LevelResponseStatus {
 	if !l.isCorrect {
-		return "not correct"
+		return api.Incorrect
 	}
 
 	if l.graph.IsBuilt() {
-		return "ready"
+		return api.Ready
 	}
 
-	return "pending"
+	return api.Pending
 }
 
-func (l *WaterSortLevel) ColorsCount() uint8 {
+func (l *Level) GameName() api.GameName {
+	return api.Watersort
+}
+
+func (l *Level) ColorsCount() int {
 	return l.colorsCount
 }
 
-func (l *WaterSortLevel) MinSteps() (uint, error) {
-	return l.graph.MinSteps()
-}
-
-func (l *WaterSortLevel) StartPosition() [][]uint8 {
-	return l.startPosition
-}
-
-func (l *WaterSortLevel) Hint(apiVials [][]uint8) (int8, int8) {
-	if !l.isCorrect || !l.graph.IsBuilt() {
-		return -1, -1
+func (l *Level) MinSteps() (*int, error) {
+	minSteps, err := l.graph.MinSteps()
+	if err != nil {
+		return nil, err
 	}
+	return &minSteps, nil
+}
+
+func (l *Level) StartLevelState() (*api.LevelState, error) {
+	var state api.LevelState
+	err := state.FromWaterSortLevelState(api.WaterSortLevelState{
+		ColorsCount: &l.colorsCount,
+		GameName:    api.Watersort,
+		Vials:       l.startPosition,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &state, nil
+}
+
+func (l *Level) Hint(levelState api.LevelState) (*api.HintResponse_Hint, error) {
+	if !l.isCorrect || !l.graph.IsBuilt() {
+		return nil, errors.New("no hint available")
+	}
+
+	wsLevelState, err := levelState.AsWaterSortLevelState()
+	if err != nil {
+		return nil, err
+	}
+
+	apiVials := wsLevelState.Vials
 
 	vials := make([]Vial, 0, len(apiVials))
 	for _, vial := range apiVials {
@@ -102,22 +132,32 @@ func (l *WaterSortLevel) Hint(apiVials [][]uint8) (int8, int8) {
 	position := NewPosition(vials)
 	nextPosition, err := l.graph.GetSuccessStep(position)
 	if err != nil {
-		return -1, -1
+		return nil, err
 	}
 
 	fromVial, toVial := position.GetStepVials(nextPosition)
 	if fromVial == 0 && toVial == 0 {
-		return -1, -1
+		return nil, errors.New("no hint available")
 	}
 
-	var from, to int8
+	var from, to int
 	for i, vial := range vials {
 		if vial == fromVial {
-			from = int8(i)
+			from = i
 		} else if vial == toVial {
-			to = int8(i)
+			to = i
 		}
 	}
 
-	return from, to
+	var hint api.HintResponse_Hint
+	err = hint.FromWaterSortHint(api.WaterSortHint{
+		GameName:      api.Watersort,
+		VialIndexFrom: from,
+		VialIndexTo:   to,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &hint, nil
 }

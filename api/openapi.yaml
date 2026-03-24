@@ -1,12 +1,15 @@
 openapi: 3.0.3
 info:
-  title: Water Sort API
+  title: Zalipuli API
   version: 0.1.0
 
+servers:
+  - url: http://localhost:8080/
+
 paths:
-  /watersort/health:
+  /health:
     get:
-      operationId: getWatersortHealth
+      operationId: getHealth
       summary: Healthcheck
       responses:
         '200':
@@ -16,10 +19,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
 
-  /watersort/levels/start:
+  /levels/start:
     post:
-      operationId: postWatersortLevelsStart
-      summary: Generate a new Water Sort level
+      operationId: postLevelsStart
+      summary: Generate a new level
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref:
+                '#/components/schemas/StartLevelRequest'
       responses:
         '201':
           description: Level created
@@ -34,9 +43,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /watersort/levels/{levelId}:
+  /levels/{levelId}:
     get:
-      operationId: getWatersortLevelsLevelId
+      operationId: getLevel
       summary: Get level by id
       parameters:
         - name: levelId
@@ -58,9 +67,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /watersort/levels/finish:
+  /levels/finish:
     post:
-      operationId: finishWatersortLevelsLevelId
+      operationId: finishLevel
       summary: Delete level by id
       requestBody:
         content:
@@ -78,9 +87,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /watersort/levels/hint:
+  /levels/hint:
     post:
-      operationId: postWatersortLevelsHint
+      operationId: postLevelsHint
       summary: Get hint for level
       requestBody:
         content:
@@ -99,6 +108,14 @@ paths:
 
 components:
   schemas:
+    StartLevelRequest:
+      type: object
+      required:
+        - gameName
+      properties:
+        gameName:
+          $ref: '#/components/schemas/GameName'
+
     HealthResponse:
       type: object
       required:
@@ -121,22 +138,28 @@ components:
       required:
         - id
         - status
+        - startLevelState
       properties:
         id:
           type: string
-          example: 6c9ec2e6f0a14b2e93fcbcf85e4e3e1d
-        colorsCount:
-          type: integer
-          minimum: 5
-          maximum: 12
-        vials:
-          $ref: '#/components/schemas/Vials'
+          example: 43e8e3e6-a3d0-41f7-9516-9835565d7997
         status:
           type: string
           enum:
             - new
             - pending
             - ready
+            - incorrect
+        startLevelState:
+          $ref: '#/components/schemas/LevelState'
+        minSteps:
+          type: integer
+          minimum: 0
+
+    GameName:
+      type: string
+      enum:
+        - watersort
 
     Vials:
       type: array
@@ -146,18 +169,43 @@ components:
         items:
           type: integer
           minimum: 1
-          maximum: 12
+          maximum: 15
 
     HintRequest:
         type: object
         required:
           - levelId
-          - position
+          - levelState
         properties:
           levelId:
             type: string
-          vials:
-            $ref: '#/components/schemas/Vials'
+          levelState:
+            $ref: '#/components/schemas/LevelState'
+
+
+    LevelState:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/WaterSortLevelState'
+      discriminator:
+        propertyName: gameName
+        mapping:
+          watersort: '#/components/schemas/WaterSortLevelState'
+
+    WaterSortLevelState:
+      type: object
+      required:
+        - gameName
+        - vials
+      properties:
+        gameName:
+          $ref: '#/components/schemas/GameName'
+        colorsCount:
+          type: integer
+          minimum: 5
+          maximum: 15
+        vials:
+          $ref: '#/components/schemas/Vials'
 
     HintResponse:
       type: object
@@ -166,6 +214,24 @@ components:
       properties:
         isSuccess:
           type: boolean
+        hint:
+          type: object
+          oneOf:
+            - $ref: '#/components/schemas/WaterSortHint'
+          discriminator:
+            propertyName: gameName
+            mapping:
+              watersort: '#/components/schemas/WaterSortHint'
+
+    WaterSortHint:
+      type: object
+      required:
+        - vialIndexFrom
+        - vialIndexTo
+        - gameName
+      properties:
+        gameName:
+          $ref: '#/components/schemas/GameName'
         vialIndexFrom:
           type: integer
         vialIndexTo:

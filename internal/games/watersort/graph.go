@@ -1,4 +1,4 @@
-package entities
+package watersort
 
 import (
 	"errors"
@@ -12,9 +12,9 @@ import (
 type Graph struct {
 	startPosition *Position
 	allPositions  map[string]*Position
-	vialsCount    uint8
+	vialsCount    int
 	isBuilt       bool
-	minStepsCount uint
+	minStepsCount int
 	buildMt       sync.RWMutex
 }
 
@@ -23,7 +23,7 @@ func NewGraph(startPosition *Position) *Graph {
 	return &Graph{
 		startPosition: startPosition,
 		allPositions:  make(map[string]*Position),
-		vialsCount:    uint8(startPosition.Len()),
+		vialsCount:    startPosition.Len(),
 	}
 }
 
@@ -48,8 +48,8 @@ func (g *Graph) Build() error {
 	// либо сокращаем число одноцветных сегментов, объединяя их друг с другом.
 	// При этом количество шагов, при которых число сегментов не изменяется, ограничено из-за общего количества сегментов одного цвета
 	for p := 0; p < len(queue); p++ {
-		for from := uint8(0); from < g.vialsCount; from++ {
-			for to := uint8(0); to < g.vialsCount; to++ {
+		for from := 0; from < g.vialsCount; from++ {
+			for to := 0; to < g.vialsCount; to++ {
 				if queue[p].CanTransfuse(from, to) {
 					nextPosition := queue[p].Transfuse(from, to)
 					if next, ok := g.allPositions[nextPosition.Hash()]; !ok {
@@ -74,7 +74,7 @@ func (g *Graph) Build() error {
 
 	// восстанавливаем пути к успеху,
 	// в мапе successPositions храним количество ходов, необходимых для того, чтобы прийти из позиции к финальной
-	successPositions := make(map[string]uint)
+	successPositions := make(map[string]int)
 	queue = nil
 	queue = append(queue, finalPosition)
 	finalPosition.SetIsSuccessWay(true)
@@ -115,7 +115,7 @@ func (g *Graph) IsBuilt() bool {
 }
 
 // MinSteps - минимальное число шагов, за которое можно из стартовой позиции прийти к успеху
-func (g *Graph) MinSteps() (uint, error) {
+func (g *Graph) MinSteps() (int, error) {
 	if !g.isBuilt {
 		return 0, errors.New("graph is not built yet")
 	}
