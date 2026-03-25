@@ -8,13 +8,19 @@ services:
       - REDIS_ADDR=redis:6379
     depends_on:
       - redis
+    networks:
+      - backend
 
   redis:
-    image: redis:7.4-alpine
-    ports:
-      - "6379:6379"
+    image: redis:latest
     volumes:
       - redis_data:/data
+    networks:
+      - backend
 
 volumes:
   redis_data:
+
+networks:
+  backend:
+    internal: true
