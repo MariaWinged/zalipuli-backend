@@ -4,6 +4,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+
+	"zalipuli/internal/api"
 	"zalipuli/internal/games"
 	"zalipuli/internal/games/watersort"
 	"zalipuli/internal/storage"
@@ -13,8 +15,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-
-	"zalipuli/internal/api"
 )
 
 func New(addr string) *http.Server {
@@ -22,21 +22,20 @@ func New(addr string) *http.Server {
 
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr != "" {
-		redisStore, err := redis.New(redisAddr)
-		if err != nil {
-			log.Fatalf("failed to connect to redis: %v", err)
-		}
-		factory := func(gameName string) games.Level {
+		factory := func(st storage.Storage, gameName string) games.Level {
 			switch gameName {
 			case string(server.Watersort):
-				return watersort.EmptyWaterSortLevel(redisStore)
+				return watersort.EmptyWaterSortLevel(st)
 			}
 
 			return nil
 		}
-		redisStore.SetFactory(factory)
+		var err error
+		store, err = redis.New(redisAddr, factory)
+		if err != nil {
+			log.Fatalf("failed to connect to redis: %v", err)
+		}
 
-		store = redisStore
 		log.Printf("using redis storage at %s", redisAddr)
 	} else {
 		store = inmemory.New()

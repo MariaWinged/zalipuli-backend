@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"zalipuli/internal/games"
+	"zalipuli/internal/storage"
 
 	"github.com/redis/go-redis/v9"
 )
 
-type LevelFactory func(gameName string) games.Level
+type LevelFactory func(storage.Storage, string) games.Level
 
 type Storage struct {
 	client  *redis.Client
@@ -25,7 +26,7 @@ type levelRecord struct {
 	Data     json.RawMessage `json:"data"`
 }
 
-func New(addr string) (*Storage, error) {
+func New(addr string, factory LevelFactory) (*Storage, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr: addr,
 	})
@@ -36,13 +37,10 @@ func New(addr string) (*Storage, error) {
 	}
 
 	return &Storage{
-		client: client,
-		ctx:    ctx,
+		client:  client,
+		factory: factory,
+		ctx:     ctx,
 	}, nil
-}
-
-func (s *Storage) SetFactory(factory LevelFactory) {
-	s.factory = factory
 }
 
 func (s *Storage) Save(level games.Level) error {
@@ -83,7 +81,7 @@ func (s *Storage) Get(id string) (games.Level, error) {
 		return nil, fmt.Errorf("failed to unmarshal level record: %w", err)
 	}
 
-	level := s.factory(record.GameName)
+	level := s.factory(s, record.GameName)
 	if level == nil {
 		return nil, errors.New("failed to create level from factory")
 	}
