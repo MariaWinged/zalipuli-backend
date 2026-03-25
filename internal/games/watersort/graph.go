@@ -17,7 +17,6 @@ type Graph struct {
 	isBuilt       bool
 	minStepsCount int
 	buildMt       sync.RWMutex
-	stateMt       sync.RWMutex
 }
 
 // NewGraph - создает граф из стартовой позиции
@@ -103,31 +102,26 @@ func (g *Graph) Build() error {
 		return errors.New("could not find success way")
 	}
 
-	g.isBuilt = true
-	g.buildMt.Unlock()
-
 	// имеет смысл хранить только успешные позиции
 	// кроме того, можно уже не хранить предыдущие позиции
-	go func() {
-		newPositionsMap := make(map[string]*Position)
-		for hash := range successPositions {
-			pos := g.allPositions[hash]
-			nextPositions := make([]*Position, 0)
-			for _, next := range pos.nextPositions {
-				if next.isSuccessWay {
-					nextPositions = append(nextPositions, next)
-				}
+
+	newPositionsMap := make(map[string]*Position)
+	for hash := range successPositions {
+		pos := g.allPositions[hash]
+		nextPositions := make([]*Position, 0)
+		for _, next := range pos.nextPositions {
+			if next.isSuccessWay {
+				nextPositions = append(nextPositions, next)
 			}
-			pos.nextPositions = nextPositions
-			pos.prevPositions = nil
-
-			newPositionsMap[hash] = pos
 		}
+		pos.nextPositions = nextPositions
+		pos.prevPositions = nil
 
-		g.stateMt.Lock()
-		defer g.stateMt.Unlock()
-		g.allPositions = newPositionsMap
-	}()
+		newPositionsMap[hash] = pos
+	}
+	g.allPositions = newPositionsMap
+
+	g.isBuilt = true
 
 	return nil
 }
@@ -154,12 +148,12 @@ func (g *Graph) MinSteps() (int, error) {
 // и не гарантирует, что этот путь будет кратчайшим.
 // Если передаваемая позиция некорректна или ведет в тупик, вернется ошибка
 func (g *Graph) GetSuccessStep(position *Position) (*Position, error) {
+	g.buildMt.RLock()
+	defer g.buildMt.RUnlock()
+
 	if !g.isBuilt {
 		return nil, errors.New("graph is not built yet")
 	}
-
-	g.stateMt.RLock()
-	defer g.stateMt.RUnlock()
 
 	graphPosition, ok := g.allPositions[position.Hash()]
 	if !ok {
@@ -182,19 +176,19 @@ func (g *Graph) GetSuccessStep(position *Position) (*Position, error) {
 }
 
 func (g *Graph) ToJson() (json.RawMessage, error) {
-	g.buildMt.Lock()
-	defer g.buildMt.Unlock()
+	g.buildMt.RLock()
+	defer g.buildMt.RUnlock()
 
-	g.stateMt.RLock()
-	defer g.stateMt.RUnlock()
-
-	allPositions := make(map[string]json.RawMessage)
-	for hash, pos := range g.allPositions {
-		jsonPos, err := pos.ToJson()
-		if err != nil {
-			return nil, err
+	var allPositions map[string]json.RawMessage
+	if g.isBuilt {
+		allPositions = make(map[string]json.RawMessage)
+		for hash, pos := range g.allPositions {
+			jsonPos, err := pos.ToJson()
+			if err != nil {
+				return nil, err
+			}
+			allPositions[hash] = jsonPos
 		}
-		allPositions[hash] = jsonPos
 	}
 
 	return json.Marshal(graph{
@@ -213,7 +207,6 @@ func (g *Graph) FromJson(jsonGraph json.RawMessage) error {
 		return err
 	}
 
-	g.isBuilt = gr.IsBuilt
 	g.minStepsCount = gr.MinStepsCount
 	g.vialsCount = gr.VialsCount
 	g.startPosition = &Position{}
@@ -222,12 +215,12 @@ func (g *Graph) FromJson(jsonGraph json.RawMessage) error {
 		return err
 	}
 
-	if !g.isBuilt {
+	if !gr.IsBuilt {
 		return nil
 	}
 
-	g.stateMt.Lock()
-	defer g.stateMt.Unlock()
+	g.buildMt.Lock()
+	defer g.buildMt.Unlock()
 
 	g.allPositions = make(map[string]*Position)
 	nextPositions := make(map[string][]string)
@@ -247,6 +240,8 @@ func (g *Graph) FromJson(jsonGraph json.RawMessage) error {
 			g.allPositions[hash].nextPositions = append(g.allPositions[hash].nextPositions, g.allPositions[nextHash])
 		}
 	}
+
+	g.isBuilt = true
 
 	return nil
 }

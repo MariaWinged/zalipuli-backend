@@ -51,7 +51,7 @@ docker-run:
 
 ## Start docker-compose stack
 compose-up:
-	docker-compose up -d
+	docker-compose build &&	docker-compose up -d
 
 ## Stop docker-compose stack
 compose-down:
