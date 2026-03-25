@@ -11,7 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type LevelFactory func(storage.Storage, string) games.Level
+type LevelFactory func(storage.LevelRepository, string) games.Level
 
 type Storage struct {
 	client  *redis.Client

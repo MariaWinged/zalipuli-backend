@@ -18,16 +18,16 @@ type Level struct {
 	graph       *Graph
 	isCorrect   bool
 	startState  api.Vials
-	storage     storage.Storage
+	storage     storage.LevelRepository
 }
 
-func EmptyWaterSortLevel(st storage.Storage) *Level {
+func EmptyWaterSortLevel(st storage.LevelRepository) *Level {
 	return &Level{
 		storage: st,
 	}
 }
 
-func NewWaterSortLevel(storage storage.Storage) *Level {
+func NewWaterSortLevel(storage storage.LevelRepository) *Level {
 	// Случайно выбираем число цветов, заполняем колбы вперемешку, и сами колбы тоже мешаем
 	colorsCount := rand.Intn(MaxColorsCount-MinColorsCount) + MinColorsCount
 	allSegments := make([]int, colorsCount*VialHeight)
@@ -236,6 +236,6 @@ func (l *Level) FromJson(jsonLvl json.RawMessage) error {
 	return nil
 }
 
-func (l *Level) SetStorage(st storage.Storage) {
+func (l *Level) SetStorage(st storage.LevelRepository) {
 	l.storage = st
 }

@@ -11,10 +11,10 @@ import (
 )
 
 type ZalipuliApi struct {
-	storage storage.Storage
+	storage storage.LevelRepository
 }
 
-func NewApi(s storage.Storage) api.ServerInterface {
+func NewApi(s storage.LevelRepository) api.ServerInterface {
 	ws.FillConstants()
 	return &ZalipuliApi{storage: s}
 }

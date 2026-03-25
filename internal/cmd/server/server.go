@@ -18,11 +18,11 @@ import (
 )
 
 func New(addr string) *http.Server {
-	var store storage.Storage
+	var store storage.LevelRepository
 
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr != "" {
-		factory := func(st storage.Storage, gameName string) games.Level {
+		factory := func(st storage.LevelRepository, gameName string) games.Level {
 			switch gameName {
 			case string(server.Watersort):
 				return watersort.EmptyWaterSortLevel(st)

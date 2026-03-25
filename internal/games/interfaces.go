@@ -15,3 +15,19 @@ type Level interface {
 	ToJson() (json.RawMessage, error)
 	FromJson(json.RawMessage) error
 }
+
+type Position interface {
+	Hash() string
+	IsFinal() bool
+	NextPositions() []string
+	MinSteps() int
+}
+
+type Graph interface {
+	Build() error
+}
+
+type PositionStorage interface {
+	BuildGraph(api.LevelState) error
+	Get(api.LevelState) (Position, error)
+}

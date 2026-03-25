@@ -10,9 +10,16 @@ const (
 	CleanupInterval = time.Minute * 5
 )
 
-type Storage interface {
+type LevelRepository interface {
 	Save(games.Level) error
 	Get(string) (games.Level, error)
+	Delete(string) error
+	Close() error
+}
+
+type PositionRepository interface {
+	Save(games.Position) error
+	Get(string) (games.Position, error)
 	Delete(string) error
 	Close() error
 }
