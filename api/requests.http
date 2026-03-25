@@ -1,0 +1,30 @@
+###
+GET http://{{url}}/health
+
+###
+POST http://{{url}}/levels/start
+Content-Type: application/json
+
+{
+  "gameName": "{{gameName}}"
+}
+
+###
+GET http://{{url}}/levels/{{levelId}}
+
+###
+POST http://{{url}}/levels/finish
+Content-Type: application/json
+
+{
+  "levelId": "{{levelId}}"
+}
+
+###
+POST http://{{url}}/levels/hint
+Content-Type: application/json
+
+{
+  "levelId": "{{levelId}}",
+  "levelState": {{levelState}}
+}

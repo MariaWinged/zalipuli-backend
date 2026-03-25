@@ -7,7 +7,7 @@ import (
 	"zalipuli/internal/storage"
 
 	ws "zalipuli/internal/games/watersort"
-	api "zalipuli/pkg/api"
+	"zalipuli/pkg/api"
 )
 
 type ZalipuliApi struct {

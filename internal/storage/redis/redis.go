@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
-
 	"zalipuli/internal/games"
 	"zalipuli/internal/storage"
 
@@ -59,7 +57,7 @@ func (s *Storage) Save(level games.Level) error {
 		return fmt.Errorf("failed to marshal level record: %w", err)
 	}
 
-	err = s.client.Set(s.ctx, level.Id(), recordData, 24*time.Hour).Err()
+	err = s.client.Set(s.ctx, level.Id(), recordData, storage.LevelLifeTime).Err()
 	if err != nil {
 		return fmt.Errorf("failed to save level to redis: %w", err)
 	}
@@ -104,4 +102,8 @@ func (s *Storage) Delete(id string) error {
 	}
 
 	return nil
+}
+
+func (s *Storage) Close() error {
+	return s.client.Close()
 }

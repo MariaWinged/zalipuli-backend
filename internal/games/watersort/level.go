@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"math/rand"
+	"unsafe"
 	"zalipuli/internal/storage"
 	"zalipuli/pkg/api"
 
@@ -177,15 +178,22 @@ func (l *Level) Hint(levelState api.LevelState) (*api.HintResponse_Hint, error) 
 }
 
 func (l *Level) ToJson() (json.RawMessage, error) {
-	graphJson, err := l.graph.ToJson()
+	graphJson, isBuilt, err := l.graph.ToJson()
 	if err != nil {
 		return nil, err
+	}
+
+	var graphPtr uintptr
+
+	if !isBuilt {
+		graphPtr = l.graph.toPtr()
 	}
 
 	return json.Marshal(level{
 		Id:          l.id,
 		ColorsCount: l.colorsCount,
 		Graph:       graphJson,
+		GraphPtr:    graphPtr,
 		IsCorrect:   l.isCorrect,
 		StartState:  l.startState,
 	})
@@ -203,24 +211,26 @@ func (l *Level) FromJson(jsonLvl json.RawMessage) error {
 	l.startState = lvl.StartState
 	l.isCorrect = lvl.IsCorrect
 
-	gr := &Graph{}
-	err = gr.FromJson(lvl.Graph)
-	if err != nil {
-		return err
-	}
+	l.graph = (*Graph)(unsafe.Pointer(lvl.GraphPtr))
+	if l.graph == nil {
+		l.graph = &Graph{}
+		err = l.graph.FromJson(lvl.Graph)
+		if err != nil {
+			return err
+		}
 
-	l.graph = gr
-	if !l.graph.IsBuilt() {
-		go func() {
-			errBuild := l.graph.Build()
-			if errBuild != nil {
-				l.isCorrect = false
-			}
-			saveErr := l.storage.Save(l)
-			if saveErr != nil {
-				log.Fatalf("Failed to save level after graph build: %v", saveErr)
-			}
-		}()
+		if !l.graph.IsBuilt() {
+			go func() {
+				errBuild := l.graph.Build()
+				if errBuild != nil {
+					l.isCorrect = false
+				}
+				saveErr := l.storage.Save(l)
+				if saveErr != nil {
+					log.Fatalf("Failed to save level after graph build: %v", saveErr)
+				}
+			}()
+		}
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package watersort
 import (
 	"testing"
 	"time"
+
 	"zalipuli/internal/storage/inmemory"
 
 	"github.com/stretchr/testify/require"
@@ -65,6 +66,21 @@ func TestWaterSortLevelJson(t *testing.T) {
 		require.Equal(t, len(pos.nextPositions), len(newPos.nextPositions))
 		require.Equal(t, pos.isSuccessWay, newPos.isSuccessWay)
 	}
+}
+
+func TestWaterSortLevelJsonNotBuild(t *testing.T) {
+	st := inmemory.New()
+	level := NewWaterSortLevel(st)
+	json, err := level.ToJson()
+	require.NoError(t, err)
+	require.NotNil(t, json)
+
+	waitForGraphBuilt(level)
+
+	newLevel := &Level{}
+	err = newLevel.FromJson(json)
+	require.NoError(t, err)
+	require.Equal(t, level.graph.toPtr(), newLevel.graph.toPtr())
 }
 
 func waitForGraphBuilt(level *Level) {

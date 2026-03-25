@@ -23,6 +23,7 @@ type level struct {
 	Id          string          `json:"id"`
 	ColorsCount int             `json:"colors_count"`
 	Graph       json.RawMessage `json:"graph"`
+	GraphPtr    uintptr         `json:"graph_ptr"`
 	IsCorrect   bool            `json:"is_correct"`
 	StartState  api.Vials       `json:"start_state"`
 }

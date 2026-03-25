@@ -3,7 +3,9 @@ package watersort
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand"
+	"strconv"
 	"sync"
 )
 
@@ -172,10 +174,14 @@ func (g *Graph) GetSuccessStep(position *Position) (*Position, error) {
 		}
 	}
 
+	if len(successPositions) == 0 {
+		return nil, errors.New("no success way from this position")
+	}
+
 	return successPositions[rand.Intn(len(successPositions))], nil
 }
 
-func (g *Graph) ToJson() (json.RawMessage, error) {
+func (g *Graph) ToJson() (json.RawMessage, bool, error) {
 	g.buildMt.RLock()
 	defer g.buildMt.RUnlock()
 
@@ -185,19 +191,21 @@ func (g *Graph) ToJson() (json.RawMessage, error) {
 		for hash, pos := range g.allPositions {
 			jsonPos, err := pos.ToJson()
 			if err != nil {
-				return nil, err
+				return nil, true, err
 			}
 			allPositions[hash] = jsonPos
 		}
 	}
 
-	return json.Marshal(graph{
+	jsonGraph, err := json.Marshal(graph{
 		StartPosition: g.startPosition.Hash(),
 		AllPositions:  allPositions,
 		VialsCount:    g.vialsCount,
 		IsBuilt:       g.isBuilt,
 		MinStepsCount: g.minStepsCount,
 	})
+
+	return jsonGraph, g.isBuilt, err
 }
 
 func (g *Graph) FromJson(jsonGraph json.RawMessage) error {
@@ -244,4 +252,9 @@ func (g *Graph) FromJson(jsonGraph json.RawMessage) error {
 	g.isBuilt = true
 
 	return nil
+}
+
+func (g *Graph) toPtr() uintptr {
+	ptrInt, _ := strconv.ParseUint(fmt.Sprintf("%p", g)[2:], 16, 64)
+	return uintptr(ptrInt)
 }
