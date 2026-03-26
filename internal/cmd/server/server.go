@@ -4,10 +4,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	ws "zalipuli/internal/games/ws_refactoring"
 
 	"zalipuli/internal/api"
 	"zalipuli/internal/games"
-	"zalipuli/internal/games/watersort"
 	"zalipuli/internal/storage"
 	"zalipuli/internal/storage/inmemory"
 	"zalipuli/internal/storage/redis"
@@ -18,31 +18,37 @@ import (
 )
 
 func New(addr string) *http.Server {
-	var store storage.LevelRepository
+	var levelRepo storage.LevelRepository
+	var posRepo storage.PositionRepository
 
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr != "" {
-		factory := func(st storage.LevelRepository, gameName string) games.Level {
+		factory := func(gameName string) games.Level {
 			switch gameName {
 			case string(server.Watersort):
-				return watersort.EmptyWaterSortLevel(st)
+				return &ws.Level{}
 			}
 
 			return nil
 		}
 		var err error
-		store, err = redis.New(redisAddr, factory)
+		redisRepo, err := redis.New(redisAddr, factory)
 		if err != nil {
 			log.Fatalf("failed to connect to redis: %v", err)
 		}
 
+		levelRepo = redisRepo
+		posRepo = redisRepo
+
 		log.Printf("using redis storage at %s", redisAddr)
 	} else {
-		store = inmemory.New()
+		inmemoryRepo := inmemory.New()
+		posRepo = inmemoryRepo
+		levelRepo = inmemoryRepo
 		log.Printf("using in-memory storage")
 	}
 
-	handler := api.NewApi(store)
+	handler := api.NewApi(levelRepo, posRepo)
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)

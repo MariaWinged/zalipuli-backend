@@ -1,8 +1,13 @@
 package games
 
 import (
-	"encoding/json"
+	"errors"
 	"zalipuli/pkg/api"
+)
+
+var (
+	NotReadyErr      = errors.New("graph not ready")
+	NotSuccessWayErr = errors.New("not success way")
 )
 
 type Level interface {
@@ -12,22 +17,12 @@ type Level interface {
 	StartLevelState() (*api.LevelState, error)
 	Hint(levelState api.LevelState) (*api.HintResponse_Hint, error)
 	MinSteps() (*int, error)
-	ToJson() (json.RawMessage, error)
-	FromJson(json.RawMessage) error
-}
-
-type Position interface {
-	Hash() string
-	IsFinal() bool
-	NextPositions() []string
-	MinSteps() int
 }
 
 type Graph interface {
-	Build() error
-}
-
-type PositionStorage interface {
-	BuildGraph(api.LevelState) error
-	Get(api.LevelState) (Position, error)
+	StartBuild(api.LevelState) error
+	GameName() api.GameName
+	GetMinSteps(api.LevelState) (int, error)
+	GetRandomNextStep(api.LevelState) (*api.HintResponse_Hint, error)
+	IsFinal(api.LevelState) bool
 }

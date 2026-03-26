@@ -1,25 +1,27 @@
 package storage
 
 import (
+	"errors"
 	"time"
 	"zalipuli/internal/games"
 )
 
 const (
-	LevelLifeTime   = time.Hour * 3
-	CleanupInterval = time.Minute * 5
+	LevelLifeTime    = time.Hour * 3
+	PositionLifeTime = time.Hour * 24 * 7
+	CleanupInterval  = time.Minute * 5
 )
 
+var ErrNotFound = errors.New("not found")
+
 type LevelRepository interface {
-	Save(games.Level) error
-	Get(string) (games.Level, error)
-	Delete(string) error
-	Close() error
+	SaveLevel(games.Level) error
+	GetLevel(string) (games.Level, error)
+	DeleteLevel(string) error
 }
 
 type PositionRepository interface {
-	Save(games.Position) error
-	Get(string) (games.Position, error)
-	Delete(string) error
-	Close() error
+	SavePosition(gameName string, hash string, position any) error
+	GetPosition(gameName string, hash string, position any) error
+	DeletePosition(gameName string, hash string) error
 }

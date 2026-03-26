@@ -71,7 +71,7 @@ func NewWaterSortLevel(storage storage.LevelRepository) *Level {
 			l.isCorrect = false
 		}
 
-		saveErr := l.storage.Save(l)
+		saveErr := l.storage.SaveLevel(l)
 		if saveErr != nil {
 			log.Fatalf("failed to save level: %v", saveErr)
 		}
@@ -225,7 +225,7 @@ func (l *Level) FromJson(jsonLvl json.RawMessage) error {
 				if errBuild != nil {
 					l.isCorrect = false
 				}
-				saveErr := l.storage.Save(l)
+				saveErr := l.storage.SaveLevel(l)
 				if saveErr != nil {
 					log.Fatalf("Failed to save level after graph build: %v", saveErr)
 				}
