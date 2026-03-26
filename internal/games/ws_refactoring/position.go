@@ -22,8 +22,11 @@ func (p *Position) isFinal() bool {
 }
 
 func NewPosition(vials Vials) *Position {
+	copyVials := make(Vials, len(vials))
+	copy(copyVials, vials)
+
 	pos := &Position{
-		Vials: vials, NextPositions: make([]string, 0), PrevPositions: make([]string, 0), MinSteps: infinity,
+		Vials: copyVials, NextPositions: make([]string, 0), PrevPositions: make([]string, 0), MinSteps: infinity,
 	}
 	pos.normalize()
 	return pos
@@ -84,15 +87,15 @@ func (p *Position) getStepVials(nextPosition *Position) (from Vial, to Vial) {
 }
 
 func (p *Position) isSuccessWay() bool {
-	return p.MinSteps < infinity && p.MinSteps > 0
+	return p.MinSteps < infinity && p.MinSteps >= 0
 }
 
 func (p *Position) setMinStepsCount(nextPosition *Position) {
 	var minSteps int
 	if nextPosition.isSuccessWay() {
-		minSteps = p.MinSteps + 1
+		minSteps = nextPosition.MinSteps + 1
 	} else {
-		minSteps = p.MinSteps
+		minSteps = infinity
 	}
 
 	p.MinSteps = min(p.MinSteps, minSteps)
@@ -121,15 +124,19 @@ func (p *Position) transfuse(from, to int) *Position {
 	defer transfusePosition.normalize()
 
 	for transfusePosition.canTransfuse(from, to) {
-		p.Vials[to] <<= ColorSize
-		p.Vials[to] |= p.Vials[from] & (1<<ColorSize - 1)
-		p.Vials[from] >>= ColorSize
+		transfusePosition.Vials[to] <<= ColorSize
+		transfusePosition.Vials[to] |= transfusePosition.Vials[from] & (1<<ColorSize - 1)
+		transfusePosition.Vials[from] >>= ColorSize
 	}
 
 	return transfusePosition
 }
 
 func (p *Position) addNext(nextPos *Position) {
+	if p.Hash == nextPos.Hash {
+		return
+	}
+
 	for _, next := range p.NextPositions {
 		if next == nextPos.Hash {
 			return

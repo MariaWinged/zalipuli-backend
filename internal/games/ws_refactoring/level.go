@@ -46,7 +46,7 @@ func NewLevel() (*Level, error) {
 	}
 
 	err = WaterSortGraph.StartBuild(state)
-	if err != nil {
+	if err != nil && !errors.Is(err, games.NotReadyErr) {
 		return nil, err
 	}
 

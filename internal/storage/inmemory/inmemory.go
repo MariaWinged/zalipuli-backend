@@ -1,8 +1,8 @@
 package inmemory
 
 import (
+	"encoding/json"
 	"fmt"
-	"reflect"
 	"sync"
 	"time"
 	"zalipuli/internal/games"
@@ -34,25 +34,20 @@ func (s *Storage) SavePosition(gameName string, hash string, position any) error
 }
 
 func (s *Storage) GetPosition(gameName string, hash string, position any) error {
-	rv := reflect.ValueOf(position)
-	if rv.Kind() != reflect.Pointer || rv.IsNil() {
-		return fmt.Errorf("invalid position: %v", position)
-	}
-
 	key := fmt.Sprintf("%s:%s", gameName, hash)
-	pos, ok := s.positions.Load(key)
+	val, ok := s.positions.Load(key)
 	if !ok {
 		return storage.ErrNotFound
 	}
 
-	Rv := reflect.ValueOf(pos)
-	if Rv.Kind() == reflect.Ptr {
-		if Rv.IsNil() {
-			return storage.ErrNotFound
-		}
-		rv.Set(Rv.Elem())
-	} else {
-		rv.Set(Rv)
+	data, err := json.Marshal(val)
+	if err != nil {
+		return fmt.Errorf("failed to marshal position: %w", err)
+	}
+
+	err = json.Unmarshal(data, position)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal position: %w", err)
 	}
 
 	return nil

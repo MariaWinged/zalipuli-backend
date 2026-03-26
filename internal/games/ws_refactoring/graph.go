@@ -35,6 +35,7 @@ func (g Graph) build(startPosition *Position) error {
 	queue := make([]*Position, 0)
 	queue = append(queue, startPosition)
 	allPositions := make(map[string]*Position)
+	allPositions[startPosition.Hash] = startPosition
 
 	minStepsQueue := make([]*Position, 0)
 
