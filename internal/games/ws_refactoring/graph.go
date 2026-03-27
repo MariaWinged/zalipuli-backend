@@ -8,10 +8,6 @@ import (
 	"zalipuli/pkg/api"
 )
 
-const gameName = "watersort"
-
-var WaterSortGraph games.Graph
-
 type Graph struct {
 	storage storage.PositionRepository
 	errChan chan error
@@ -43,7 +39,15 @@ func (g Graph) build(startPosition *Position) error {
 		var storagePos Position
 		err = g.storage.GetPosition(gameName, queue[p].Hash, &storagePos)
 		if err == nil {
-			queue[p] = &storagePos
+			queue[p].MinSteps = storagePos.MinSteps
+			for _, nextHash := range storagePos.NextPositions {
+				if nextPos, ok := allPositions[nextHash]; ok {
+					queue[p].addNext(nextPos)
+				} else {
+					queue[p].NextPositions = append(queue[p].NextPositions, nextHash)
+				}
+			}
+
 			minStepsQueue = append(minStepsQueue, queue[p])
 			continue
 		}
@@ -96,12 +100,7 @@ func (g Graph) build(startPosition *Position) error {
 	return nil
 }
 
-func (g Graph) StartBuild(state api.LevelState) error {
-	position, err := newPositionFromLevelState(state)
-	if err != nil {
-		return err
-	}
-
+func (g Graph) startBuild(position *Position) error {
 	select {
 	case err := <-g.errChan:
 		return err
@@ -133,7 +132,7 @@ func (g Graph) GetMinSteps(state api.LevelState) (int, error) {
 		return position.minSteps(), nil
 	}
 
-	return 0, g.StartBuild(state)
+	return 0, g.startBuild(position)
 }
 
 func (g Graph) GetRandomNextStep(state api.LevelState) (*api.HintResponse_Hint, error) {
@@ -155,8 +154,8 @@ func (g Graph) GetRandomNextStep(state api.LevelState) (*api.HintResponse_Hint, 
 			var nextPos Position
 			err = g.storage.GetPosition(gameName, nextPosHash, &nextPos)
 			if err != nil {
-				if !errors.Is(err, storage.ErrNotFound) {
-					return nil, g.StartBuild(state)
+				if errors.Is(err, storage.ErrNotFound) {
+					return nil, g.startBuild(position)
 				}
 
 				return nil, err
@@ -171,7 +170,7 @@ func (g Graph) GetRandomNextStep(state api.LevelState) (*api.HintResponse_Hint, 
 		return g.getNext(state, position, successNextPositions[rand.Intn(len(successNextPositions))])
 	}
 
-	return nil, g.StartBuild(state)
+	return nil, g.startBuild(position)
 }
 
 func (g Graph) getNext(state api.LevelState, pos *Position, nextPos *Position) (*api.HintResponse_Hint, error) {

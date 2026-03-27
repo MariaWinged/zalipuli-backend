@@ -11,6 +11,10 @@ const (
 	ColorSize = 4
 )
 
+const gameName = "watersort"
+
+var WaterSortGraph *Graph
+
 // OneColoredVials - флаконы, заполненные одним цветом
 var OneColoredVials = make([]Vial, 0, MaxColorsCount)
 

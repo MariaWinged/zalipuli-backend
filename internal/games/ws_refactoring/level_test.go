@@ -20,7 +20,7 @@ func TestNewWaterSortLevel(t *testing.T) {
 }
 
 func waitForGraphBuilt(level *Level) {
-	for retry := 0; level.Status() != "ready" && retry < 100; retry++ {
+	for retry := 0; level.Status() != "ready" && retry < 20; retry++ {
 		time.Sleep(500 * time.Millisecond)
 	}
 

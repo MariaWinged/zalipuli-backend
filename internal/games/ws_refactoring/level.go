@@ -36,24 +36,24 @@ func NewLevel() (*Level, error) {
 		vials[i], vials[j] = vials[j], vials[i]
 	})
 
+	err := WaterSortGraph.startBuild(NewPosition(vials))
+	if err != nil && !errors.Is(err, games.NotReadyErr) {
+		return nil, err
+	}
+
 	apiVials := convertToApiVials(vials)
 	startState := api.WaterSortLevelState{Vials: apiVials, GameName: api.Watersort, ColorsCount: &colorsCount}
 
 	var state api.LevelState
-	err := state.FromWaterSortLevelState(startState)
+	err = state.FromWaterSortLevelState(startState)
 	if err != nil {
-		return nil, err
-	}
-
-	err = WaterSortGraph.StartBuild(state)
-	if err != nil && !errors.Is(err, games.NotReadyErr) {
 		return nil, err
 	}
 
 	level := &Level{
 		ID:         uuid.New().String(),
 		Game:       gameName,
-		StartState: api.WaterSortLevelState{Vials: apiVials, GameName: api.Watersort, ColorsCount: &colorsCount},
+		StartState: startState,
 	}
 
 	return level, nil

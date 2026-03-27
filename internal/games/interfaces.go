@@ -20,7 +20,6 @@ type Level interface {
 }
 
 type Graph interface {
-	StartBuild(api.LevelState) error
 	GameName() api.GameName
 	GetMinSteps(api.LevelState) (int, error)
 	GetRandomNextStep(api.LevelState) (*api.HintResponse_Hint, error)
