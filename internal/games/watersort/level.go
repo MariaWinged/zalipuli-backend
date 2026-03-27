@@ -1,33 +1,21 @@
-package watersort
+package ws
 
 import (
-	"encoding/json"
 	"errors"
-	"log"
 	"math/rand"
-	"unsafe"
-	"zalipuli/internal/storage"
+	"zalipuli/internal/games"
 	"zalipuli/pkg/api"
 
 	"github.com/google/uuid"
 )
 
 type Level struct {
-	id          string
-	colorsCount int
-	graph       *Graph
-	isCorrect   bool
-	startState  api.Vials
-	storage     storage.LevelRepository
+	ID         string                  `json:"id"`
+	Game       string                  `json:"game_name"`
+	StartState api.WaterSortLevelState `json:"start_state"`
 }
 
-func EmptyWaterSortLevel(st storage.LevelRepository) *Level {
-	return &Level{
-		storage: st,
-	}
-}
-
-func NewWaterSortLevel(storage storage.LevelRepository) *Level {
+func NewLevel() (*Level, error) {
 	// Случайно выбираем число цветов, заполняем колбы вперемешку, и сами колбы тоже мешаем
 	colorsCount := rand.Intn(MaxColorsCount-MinColorsCount) + MinColorsCount
 	allSegments := make([]int, colorsCount*VialHeight)
@@ -48,194 +36,85 @@ func NewWaterSortLevel(storage storage.LevelRepository) *Level {
 		vials[i], vials[j] = vials[j], vials[i]
 	})
 
-	apiVials := make(api.Vials, colorsCount+2)
-	for i, vial := range vials {
-		apiVials[i] = vial.Segments()
+	err := WaterSortGraph.startBuild(NewPosition(vials))
+	if err != nil && !errors.Is(err, games.NotReadyErr) {
+		return nil, err
 	}
 
-	// теперь формируем стартовую позицию, граф и уровень
-	startPosition := NewPosition(vials)
+	apiVials := convertToApiVials(vials)
+	startState := api.WaterSortLevelState{Vials: apiVials, GameName: api.Watersort, ColorsCount: &colorsCount}
 
-	l := &Level{
-		id:          uuid.NewString(),
-		graph:       NewGraph(startPosition),
-		isCorrect:   true,
-		startState:  apiVials,
-		colorsCount: colorsCount,
-		storage:     storage,
+	var state api.LevelState
+	err = state.FromWaterSortLevelState(startState)
+	if err != nil {
+		return nil, err
 	}
 
-	go func() {
-		err := l.graph.Build()
-		if err != nil {
-			l.isCorrect = false
-		}
-
-		saveErr := l.storage.SaveLevel(l)
-		if saveErr != nil {
-			log.Fatalf("failed to save level: %v", saveErr)
-		}
-
-	}()
-
-	return l
-}
-
-func (l *Level) Id() string {
-	return l.id
-}
-
-func (l *Level) Status() api.LevelResponseStatus {
-	if !l.isCorrect {
-		return api.Incorrect
+	level := &Level{
+		ID:         uuid.New().String(),
+		Game:       gameName,
+		StartState: startState,
 	}
 
-	if l.graph.IsBuilt() {
-		return api.Ready
-	}
-
-	return api.Pending
+	return level, nil
 }
 
 func (l *Level) GameName() api.GameName {
 	return api.Watersort
 }
 
-func (l *Level) ColorsCount() int {
-	return l.colorsCount
+func (l *Level) Id() string {
+	return l.ID
 }
 
-func (l *Level) MinSteps() (*int, error) {
-	minSteps, err := l.graph.MinSteps()
+func (l *Level) Status() api.LevelResponseStatus {
+	state := &api.LevelState{}
+	err := state.FromWaterSortLevelState(l.StartState)
 	if err != nil {
-		return nil, err
+		return api.Incorrect
 	}
-	return &minSteps, nil
+
+	_, err = WaterSortGraph.GetMinSteps(*state)
+	if err != nil {
+		if errors.Is(err, games.NotReadyErr) {
+			return api.Pending
+		}
+		return api.Incorrect
+	}
+
+	return api.Ready
 }
 
 func (l *Level) StartLevelState() (*api.LevelState, error) {
-	var state api.LevelState
-	err := state.FromWaterSortLevelState(api.WaterSortLevelState{
-		ColorsCount: &l.colorsCount,
-		GameName:    api.Watersort,
-		Vials:       l.startState,
-	})
+	state := &api.LevelState{}
+	err := state.FromWaterSortLevelState(l.StartState)
 	if err != nil {
 		return nil, err
 	}
 
-	return &state, nil
+	return state, nil
 }
 
 func (l *Level) Hint(levelState api.LevelState) (*api.HintResponse_Hint, error) {
-	if !l.isCorrect || !l.graph.IsBuilt() {
-		return nil, errors.New("no hint available")
-	}
-
-	wsLevelState, err := levelState.AsWaterSortLevelState()
+	hint, err := WaterSortGraph.GetRandomNextStep(levelState)
 	if err != nil {
 		return nil, err
 	}
 
-	apiVials := wsLevelState.Vials
-
-	vials := make([]Vial, 0, len(apiVials))
-	for _, vial := range apiVials {
-		vials = append(vials, NewVial(vial))
-	}
-
-	position := NewPosition(vials)
-	nextPosition, err := l.graph.GetSuccessStep(position)
-	if err != nil {
-		return nil, err
-	}
-
-	fromVial, toVial := position.GetStepVials(nextPosition)
-	if fromVial == 0 && toVial == 0 {
-		return nil, errors.New("no hint available")
-	}
-
-	var from, to int
-	for i, vial := range vials {
-		if vial == fromVial {
-			from = i
-		} else if vial == toVial {
-			to = i
-		}
-	}
-
-	var hint api.HintResponse_Hint
-	err = hint.FromWaterSortHint(api.WaterSortHint{
-		GameName:      api.Watersort,
-		VialIndexFrom: from,
-		VialIndexTo:   to,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &hint, nil
+	return hint, nil
 }
 
-func (l *Level) ToJson() (json.RawMessage, error) {
-	graphJson, isBuilt, err := l.graph.ToJson()
+func (l *Level) MinSteps() (*int, error) {
+	state := &api.LevelState{}
+	err := state.FromWaterSortLevelState(l.StartState)
 	if err != nil {
 		return nil, err
 	}
 
-	var graphPtr uintptr
-
-	if !isBuilt {
-		graphPtr = l.graph.toPtr()
-	}
-
-	return json.Marshal(level{
-		Id:          l.id,
-		ColorsCount: l.colorsCount,
-		Graph:       graphJson,
-		GraphPtr:    graphPtr,
-		IsCorrect:   l.isCorrect,
-		StartState:  l.startState,
-	})
-}
-
-func (l *Level) FromJson(jsonLvl json.RawMessage) error {
-	lvl := &level{}
-	err := json.Unmarshal(jsonLvl, lvl)
+	minSteps, err := WaterSortGraph.GetMinSteps(*state)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	l.id = lvl.Id
-	l.colorsCount = lvl.ColorsCount
-	l.startState = lvl.StartState
-	l.isCorrect = lvl.IsCorrect
-
-	l.graph = (*Graph)(unsafe.Pointer(lvl.GraphPtr))
-	if l.graph == nil {
-		l.graph = &Graph{}
-		err = l.graph.FromJson(lvl.Graph)
-		if err != nil {
-			return err
-		}
-
-		if !l.graph.IsBuilt() {
-			go func() {
-				errBuild := l.graph.Build()
-				if errBuild != nil {
-					l.isCorrect = false
-				}
-				saveErr := l.storage.SaveLevel(l)
-				if saveErr != nil {
-					log.Fatalf("Failed to save level after graph build: %v", saveErr)
-				}
-			}()
-		}
-	}
-
-	return nil
-}
-
-func (l *Level) SetStorage(st storage.LevelRepository) {
-	l.storage = st
+	return &minSteps, nil
 }

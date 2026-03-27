@@ -1,4 +1,4 @@
-package watersort
+package ws
 
 const (
 	// VialHeight - высота флакона (количество сегментов)
@@ -11,6 +11,10 @@ const (
 	ColorSize = 4
 )
 
+const gameName = "watersort"
+
+var WaterSortGraph *Graph
+
 // OneColoredVials - флаконы, заполненные одним цветом
 var OneColoredVials = make([]Vial, 0, MaxColorsCount)
 
@@ -18,7 +22,7 @@ var OneColoredVials = make([]Vial, 0, MaxColorsCount)
 var FinalPositionsHash = make([]string, 0, MaxColorsCount)
 
 func FillConstants() {
-	vials := []Vial{
+	vials := Vials{
 		0, 0,
 	}
 	for i := uint8(0); i < MaxColorsCount; i++ {
@@ -31,6 +35,6 @@ func FillConstants() {
 		OneColoredVials = append(OneColoredVials, vial)
 		vials = append(vials, vial)
 		position := NewPosition(vials)
-		FinalPositionsHash = append(FinalPositionsHash, position.Hash())
+		FinalPositionsHash = append(FinalPositionsHash, position.Hash)
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	ws "zalipuli/internal/games/ws_refactoring"
+	ws "zalipuli/internal/games/watersort"
 
 	"zalipuli/internal/api"
 	"zalipuli/internal/games"

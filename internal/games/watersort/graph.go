@@ -1,260 +1,219 @@
-package watersort
+package ws
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"math/rand"
-	"strconv"
-	"sync"
+	"zalipuli/internal/games"
+	"zalipuli/internal/storage"
+	"zalipuli/pkg/api"
 )
 
-// Graph - сущность, представляющая собой все возможные пути решения уровня
-// Алгоритм построения работает достаточно долго, поэтому подразумевается асинхронное построение
-// Основные функции графа это подсказки, а также информация о минимальном количестве ходов для прохождения уровня
 type Graph struct {
-	startPosition *Position
-	allPositions  map[string]*Position
-	vialsCount    int
-	isBuilt       bool
-	minStepsCount int
-	buildMt       sync.RWMutex
+	storage storage.PositionRepository
+	errChan chan error
 }
 
-// NewGraph - создает граф из стартовой позиции
-func NewGraph(startPosition *Position) *Graph {
-	return &Graph{
-		startPosition: startPosition,
-		allPositions:  make(map[string]*Position),
-		vialsCount:    startPosition.Len(),
-	}
+func NewGraph(s storage.PositionRepository) *Graph {
+	FillConstants()
+	return &Graph{storage: s, errChan: make(chan error)}
 }
 
-// Build - строит граф всех позиций по алгоритму поиска в ширину
-// Если стартовая позиция корректна (содержит 2 пустых колбы и ровно 4 сегмента каждого цвета),
-// то граф гарантированно построится. В противном случае успешное построение не гарантированно
-func (g *Graph) Build() error {
-	g.buildMt.Lock()
-	defer g.buildMt.Unlock()
+func (g Graph) GameName() api.GameName {
+	return api.Watersort
+}
 
-	if g.isBuilt {
-		return nil
+func (g Graph) build(startPosition *Position) error {
+	err := g.storage.DeletePosition(gameName, startPosition.Hash)
+	if err != nil && !errors.Is(err, storage.ErrNotFound) {
+		return err
 	}
 
 	queue := make([]*Position, 0)
-	queue = append(queue, g.startPosition)
-	g.allPositions[g.startPosition.Hash()] = g.startPosition
+	queue = append(queue, startPosition)
+	allPositions := make(map[string]*Position)
+	allPositions[startPosition.Hash] = startPosition
 
-	// Строим граф поиском в ширину: из стартовой позиции ищем все возможные позиции, в которые мы можем перейти.
-	// Если новой позиции еще нет в очереди, добавляем ее туда.
-	// Граф в любом случае конечный, тк каждым переливанием мы либо не изменяем,
-	// либо сокращаем число одноцветных сегментов, объединяя их друг с другом.
-	// При этом количество шагов, при которых число сегментов не изменяется, ограничено из-за общего количества сегментов одного цвета
+	minStepsQueue := make([]*Position, 0)
+
 	for p := 0; p < len(queue); p++ {
-		for from := 0; from < g.vialsCount; from++ {
-			for to := 0; to < g.vialsCount; to++ {
-				if queue[p].CanTransfuse(from, to) {
-					nextPosition := queue[p].Transfuse(from, to)
-					if next, ok := g.allPositions[nextPosition.Hash()]; !ok {
-						g.allPositions[nextPosition.Hash()] = nextPosition
-						queue = append(queue, nextPosition)
-					} else {
-						// переприсвоим на уже существующую, чтобы сохранить связи позиции
-						nextPosition = next
-					}
+		var storagePos Position
+		err = g.storage.GetPosition(gameName, queue[p].Hash, &storagePos)
+		if err == nil {
+			queue[p].MinSteps = storagePos.MinSteps
+			for _, nextHash := range storagePos.NextPositions {
+				if nextPos, ok := allPositions[nextHash]; ok {
+					queue[p].addNext(nextPos)
+				} else {
+					queue[p].NextPositions = append(queue[p].NextPositions, nextHash)
+				}
+			}
 
-					queue[p].AddNext(nextPosition)
+			minStepsQueue = append(minStepsQueue, queue[p])
+			continue
+		}
+
+		for i := 0; i < len(queue[p].Vials); i++ {
+			for j := 0; j < len(queue[p].Vials); j++ {
+				if queue[p].canTransfuse(i, j) {
+					newPos := queue[p].transfuse(i, j)
+					if allPositions[newPos.Hash] == nil {
+						allPositions[newPos.Hash] = newPos
+						queue = append(queue, newPos)
+					} else {
+						newPos = allPositions[newPos.Hash]
+					}
+					queue[p].addNext(newPos)
 				}
 			}
 		}
 	}
 
-	// ищем финальную позицию успешного завершения уровня
-	finalPosition := g.allPositions[FinalPositionsHash[g.vialsCount-3]]
-	if finalPosition == nil {
-		return errors.New("final position not found")
+	finalHash := FinalPositionsHash[len(startPosition.Vials)-3]
+	if finalPos, ok := allPositions[finalHash]; ok {
+		finalPos.MinSteps = 0
+		minStepsQueue = append(minStepsQueue, finalPos)
 	}
 
-	// восстанавливаем пути к успеху,
-	// в мапе successPositions храним количество ходов, необходимых для того, чтобы прийти из позиции к финальной
-	successPositions := make(map[string]int)
-	queue = nil
-	queue = append(queue, finalPosition)
-	finalPosition.SetIsSuccessWay(true)
-	successPositions[finalPosition.Hash()] = 0
+	minStepsPositons := make(map[string]bool)
 
-	for p := 0; p < len(queue); p++ {
-		prevPositions := queue[p].GetPrev()
-		for _, prevPosition := range prevPositions {
-			prevPosition.SetIsSuccessWay(true)
-			if _, ok := successPositions[prevPosition.Hash()]; !ok {
-				successPositions[prevPosition.Hash()] = successPositions[queue[p].Hash()] + 1
-				queue = append(queue, prevPosition)
-			} else {
-				// если мы уже встречали эту позицию, то стоит проверить, что в ней лежит минимальный путь
-				successPositions[prevPosition.Hash()] = min(successPositions[prevPosition.Hash()], successPositions[queue[p].Hash()]+1)
+	for p := 0; p < len(minStepsQueue); p++ {
+		for _, prevHash := range minStepsQueue[p].PrevPositions {
+			prevPos := allPositions[prevHash]
+			if prevPos == nil {
+				continue
+			}
+			prevPos.setMinStepsCount(minStepsQueue[p])
+			if !minStepsPositons[prevPos.Hash] {
+				minStepsPositons[prevPos.Hash] = true
+				minStepsQueue = append(minStepsQueue, prevPos)
 			}
 		}
 	}
 
-	ok := false
-	// так как мы уже построили граф, то и обратно тоже должны найти путь
-	// тем не менее, лучше все-таки обработать ошибку из-за потенциальных багов в алгоритме
-	if g.minStepsCount, ok = successPositions[g.startPosition.Hash()]; !ok {
-		return errors.New("could not find success way")
-	}
-
-	// имеет смысл хранить только успешные позиции
-	// кроме того, можно уже не хранить предыдущие позиции
-
-	newPositionsMap := make(map[string]*Position)
-	for hash := range successPositions {
-		pos := g.allPositions[hash]
-		nextPositions := make([]*Position, 0)
-		for _, next := range pos.nextPositions {
-			if next.isSuccessWay {
-				nextPositions = append(nextPositions, next)
-			}
-		}
-		pos.nextPositions = nextPositions
-		pos.prevPositions = nil
-
-		newPositionsMap[hash] = pos
-	}
-	g.allPositions = newPositionsMap
-
-	g.isBuilt = true
-
-	return nil
-}
-
-// IsBuilt - статус постройки графа
-func (g *Graph) IsBuilt() bool {
-	g.buildMt.RLock()
-	defer g.buildMt.RUnlock()
-
-	return g.isBuilt
-}
-
-// MinSteps - минимальное число шагов, за которое можно из стартовой позиции прийти к успеху
-func (g *Graph) MinSteps() (int, error) {
-	if !g.isBuilt {
-		return 0, errors.New("graph is not built yet")
-	}
-
-	return g.minStepsCount, nil
-}
-
-// GetSuccessStep возвращает следующую позицию для успешного завершения уровня
-// Следующая позиция выбирается случайно из доступных путей к успеху
-// и не гарантирует, что этот путь будет кратчайшим.
-// Если передаваемая позиция некорректна или ведет в тупик, вернется ошибка
-func (g *Graph) GetSuccessStep(position *Position) (*Position, error) {
-	g.buildMt.RLock()
-	defer g.buildMt.RUnlock()
-
-	if !g.isBuilt {
-		return nil, errors.New("graph is not built yet")
-	}
-
-	graphPosition, ok := g.allPositions[position.Hash()]
-	if !ok {
-		return nil, errors.New("position not found in graph")
-	}
-
-	if !graphPosition.IsSuccessWay() {
-		return nil, errors.New("no success way from this position")
-	}
-
-	successPositions := make([]*Position, 0)
-
-	for _, nextPosition := range graphPosition.GetNext() {
-		if nextPosition.IsSuccessWay() {
-			successPositions = append(successPositions, nextPosition)
-		}
-	}
-
-	if len(successPositions) == 0 {
-		return nil, errors.New("no success way from this position")
-	}
-
-	return successPositions[rand.Intn(len(successPositions))], nil
-}
-
-func (g *Graph) ToJson() (json.RawMessage, bool, error) {
-	g.buildMt.RLock()
-	defer g.buildMt.RUnlock()
-
-	var allPositions map[string]json.RawMessage
-	if g.isBuilt {
-		allPositions = make(map[string]json.RawMessage)
-		for hash, pos := range g.allPositions {
-			jsonPos, err := pos.ToJson()
-			if err != nil {
-				return nil, true, err
-			}
-			allPositions[hash] = jsonPos
-		}
-	}
-
-	jsonGraph, err := json.Marshal(graph{
-		StartPosition: g.startPosition.Hash(),
-		AllPositions:  allPositions,
-		VialsCount:    g.vialsCount,
-		IsBuilt:       g.isBuilt,
-		MinStepsCount: g.minStepsCount,
-	})
-
-	return jsonGraph, g.isBuilt, err
-}
-
-func (g *Graph) FromJson(jsonGraph json.RawMessage) error {
-	gr := graph{}
-	err := json.Unmarshal(jsonGraph, &gr)
-	if err != nil {
-		return err
-	}
-
-	g.minStepsCount = gr.MinStepsCount
-	g.vialsCount = gr.VialsCount
-	g.startPosition = &Position{}
-	err = g.startPosition.FromHash(gr.StartPosition)
-	if err != nil {
-		return err
-	}
-
-	if !gr.IsBuilt {
-		return nil
-	}
-
-	g.buildMt.Lock()
-	defer g.buildMt.Unlock()
-
-	g.allPositions = make(map[string]*Position)
-	nextPositions := make(map[string][]string)
-	for hash, pos := range gr.AllPositions {
-		newPosition := &Position{}
-		next, err := newPosition.FromJson(pos)
+	for _, pos := range allPositions {
+		err := g.storage.SavePosition(gameName, pos.Hash, pos)
 		if err != nil {
 			return err
 		}
-
-		g.allPositions[hash] = newPosition
-		nextPositions[hash] = next
 	}
-
-	for hash, next := range nextPositions {
-		for _, nextHash := range next {
-			g.allPositions[hash].nextPositions = append(g.allPositions[hash].nextPositions, g.allPositions[nextHash])
-		}
-	}
-
-	g.isBuilt = true
 
 	return nil
 }
 
-func (g *Graph) toPtr() uintptr {
-	ptrInt, _ := strconv.ParseUint(fmt.Sprintf("%p", g)[2:], 16, 64)
-	return uintptr(ptrInt)
+func (g Graph) startBuild(position *Position) error {
+	select {
+	case err := <-g.errChan:
+		return err
+	default:
+		go func() {
+			err := g.build(position)
+			if err != nil {
+				g.errChan <- err
+			}
+		}()
+	}
+	return games.NotReadyErr
+}
+
+func (g Graph) GetMinSteps(state api.LevelState) (int, error) {
+	position, err := newPositionFromLevelState(state)
+	if err != nil {
+		return 0, err
+	}
+
+	var storagePos Position
+
+	if err = g.storage.GetPosition(gameName, position.Hash, &storagePos); err == nil {
+		position = &storagePos
+		if !position.isSuccessWay() {
+			return 0, games.NotSuccessWayErr
+		}
+
+		return position.minSteps(), nil
+	}
+
+	return 0, g.startBuild(position)
+}
+
+func (g Graph) GetRandomNextStep(state api.LevelState) (*api.HintResponse_Hint, error) {
+	position, err := newPositionFromLevelState(state)
+	if err != nil {
+		return nil, err
+	}
+
+	var storagePos Position
+
+	if err = g.storage.GetPosition(gameName, position.Hash, &storagePos); err == nil {
+		position = &storagePos
+
+		if !position.isSuccessWay() {
+			return nil, errors.New("no next level")
+		}
+		successNextPositions := make([]*Position, 0)
+		for _, nextPosHash := range position.NextPositions {
+			var nextPos Position
+			err = g.storage.GetPosition(gameName, nextPosHash, &nextPos)
+			if err != nil {
+				if errors.Is(err, storage.ErrNotFound) {
+					return nil, g.startBuild(position)
+				}
+
+				return nil, err
+			}
+			successNextPositions = append(successNextPositions, &nextPos)
+		}
+
+		if len(successNextPositions) == 0 {
+			return nil, games.NotSuccessWayErr
+		}
+
+		return g.getNext(state, position, successNextPositions[rand.Intn(len(successNextPositions))])
+	}
+
+	return nil, g.startBuild(position)
+}
+
+func (g Graph) getNext(state api.LevelState, pos *Position, nextPos *Position) (*api.HintResponse_Hint, error) {
+	wsLevelState, err := state.AsWaterSortLevelState()
+	if err != nil {
+		return nil, err
+	}
+
+	fromVial, toVial := pos.getStepVials(nextPos)
+	if fromVial == 0 && toVial == 0 {
+		return nil, games.NotSuccessWayErr
+	}
+
+	vials := convertFromApiVials(wsLevelState.Vials)
+
+	from, to := -1, -1
+
+	for i, vial := range vials {
+		if vial == fromVial && (from == -1 || rand.Intn(2) == 0) {
+			from = i
+		} else if vial == toVial && (to == -1 || rand.Intn(2) == 0) {
+			to = i
+		}
+	}
+
+	var hint api.HintResponse_Hint
+	err = hint.FromWaterSortHint(api.WaterSortHint{
+		GameName:      api.Watersort,
+		VialIndexFrom: from,
+		VialIndexTo:   to,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &hint, nil
+}
+
+func (g Graph) IsFinal(state api.LevelState) bool {
+	position, err := newPositionFromLevelState(state)
+	if err != nil {
+		return false
+	}
+
+	return position.isFinal()
 }

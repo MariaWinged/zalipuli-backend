@@ -1,13 +1,22 @@
-package watersort
+package ws
 
-import "slices"
+import (
+	"slices"
+	"zalipuli/pkg/api"
+)
 
 // Vial - абстракция флакона с цветной водой
-// Всего в флаконе может быть до четырех разноцветных сегментов воды
+// Всего во флаконе может быть до четырех разноцветных сегментов воды
 // Для игры достаточно количество цветов до 15, поэтому флакон мы можем хранить как 16-битное число, по 4 бита на каждый сегмент
 type Vial uint16
 
-// NewVial - создает новую флакон из сегментов
+type Vials []Vial
+
+func (v Vials) Len() int           { return len(v) }
+func (v Vials) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
+func (v Vials) Less(i, j int) bool { return v[i] < v[j] }
+
+// NewVial - создает новый флакон из сегментов
 func NewVial(segments []int) Vial {
 	var hash uint16
 	for _, segment := range segments {
@@ -45,4 +54,20 @@ func (f Vial) Len() int {
 	}
 
 	return l
+}
+
+func convertFromApiVials(apiVials api.Vials) Vials {
+	vials := make([]Vial, 0, len(apiVials))
+	for _, vial := range apiVials {
+		vials = append(vials, NewVial(vial))
+	}
+	return vials
+}
+
+func convertToApiVials(vials Vials) api.Vials {
+	apiVials := make(api.Vials, len(vials))
+	for i, vial := range vials {
+		apiVials[i] = vial.Segments()
+	}
+	return apiVials
 }

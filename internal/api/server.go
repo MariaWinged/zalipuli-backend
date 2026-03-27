@@ -6,7 +6,7 @@ import (
 	"zalipuli/internal/games"
 	"zalipuli/internal/storage"
 
-	ws "zalipuli/internal/games/ws_refactoring"
+	ws "zalipuli/internal/games/watersort"
 	"zalipuli/pkg/api"
 )
 
