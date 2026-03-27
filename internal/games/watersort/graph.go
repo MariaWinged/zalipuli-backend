@@ -36,8 +36,7 @@ func (g Graph) build(startPosition *Position) error {
 	minStepsQueue := make([]*Position, 0)
 
 	for p := 0; p < len(queue); p++ {
-		var storagePos Position
-		err = g.storage.GetPosition(gameName, queue[p].Hash, &storagePos)
+		storagePos, err := g.getPosition(queue[p].Hash)
 		if err == nil {
 			queue[p].MinSteps = storagePos.MinSteps
 			for _, nextHash := range storagePos.NextPositions {
@@ -100,6 +99,20 @@ func (g Graph) build(startPosition *Position) error {
 	return nil
 }
 
+func (g Graph) getPosition(hash string) (*Position, error) {
+	var position Position
+	err := g.storage.GetPosition(gameName, hash, &position)
+	if err != nil {
+		return nil, err
+	}
+
+	err = position.restoreVials()
+	if err != nil {
+	}
+
+	return &position, nil
+}
+
 func (g Graph) startBuild(position *Position) error {
 	select {
 	case err := <-g.errChan:
@@ -121,10 +134,8 @@ func (g Graph) GetMinSteps(state api.LevelState) (int, error) {
 		return 0, err
 	}
 
-	var storagePos Position
-
-	if err = g.storage.GetPosition(gameName, position.Hash, &storagePos); err == nil {
-		position = &storagePos
+	if storagePos, err := g.getPosition(position.Hash); err == nil {
+		position = storagePos
 		if !position.isSuccessWay() {
 			return 0, games.NotSuccessWayErr
 		}
@@ -141,18 +152,15 @@ func (g Graph) GetRandomNextStep(state api.LevelState) (*api.HintResponse_Hint, 
 		return nil, err
 	}
 
-	var storagePos Position
-
-	if err = g.storage.GetPosition(gameName, position.Hash, &storagePos); err == nil {
-		position = &storagePos
+	if storagePos, err := g.getPosition(position.Hash); err == nil {
+		position = storagePos
 
 		if !position.isSuccessWay() {
 			return nil, errors.New("no next level")
 		}
 		successNextPositions := make([]*Position, 0)
 		for _, nextPosHash := range position.NextPositions {
-			var nextPos Position
-			err = g.storage.GetPosition(gameName, nextPosHash, &nextPos)
+			nextPos, err := g.getPosition(nextPosHash)
 			if err != nil {
 				if errors.Is(err, storage.ErrNotFound) {
 					return nil, g.startBuild(position)
@@ -160,7 +168,7 @@ func (g Graph) GetRandomNextStep(state api.LevelState) (*api.HintResponse_Hint, 
 
 				return nil, err
 			}
-			successNextPositions = append(successNextPositions, &nextPos)
+			successNextPositions = append(successNextPositions, nextPos)
 		}
 
 		if len(successNextPositions) == 0 {

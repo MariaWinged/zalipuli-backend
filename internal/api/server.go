@@ -32,11 +32,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func (h *ZalipuliApi) GetHealth(w http.ResponseWriter, _ *http.Request) {
+func (a *ZalipuliApi) GetHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, api.HealthResponse{Status: "ok"})
 }
 
-func (h *ZalipuliApi) PostLevelsStart(w http.ResponseWriter, r *http.Request) {
+func (a *ZalipuliApi) PostLevelsStart(w http.ResponseWriter, r *http.Request) {
 	var req api.StartLevelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, api.ErrorResponse{Message: "invalid request body"})
@@ -58,7 +58,7 @@ func (h *ZalipuliApi) PostLevelsStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.levelRepo.SaveLevel(level)
+	err = a.levelRepo.SaveLevel(level)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, api.ErrorResponse{Message: err.Error()})
 		return
@@ -80,8 +80,8 @@ func (h *ZalipuliApi) PostLevelsStart(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *ZalipuliApi) GetLevel(w http.ResponseWriter, _ *http.Request, levelId string) {
-	level, err := h.levelRepo.GetLevel(levelId)
+func (a *ZalipuliApi) GetLevel(w http.ResponseWriter, _ *http.Request, levelId string) {
+	level, err := a.levelRepo.GetLevel(levelId)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, api.ErrorResponse{Message: "level not found"})
 		return
@@ -102,14 +102,14 @@ func (h *ZalipuliApi) GetLevel(w http.ResponseWriter, _ *http.Request, levelId s
 	})
 }
 
-func (h *ZalipuliApi) FinishLevel(w http.ResponseWriter, r *http.Request) {
+func (a *ZalipuliApi) FinishLevel(w http.ResponseWriter, r *http.Request) {
 	var req api.FinishLevelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, api.ErrorResponse{Message: "invalid request body"})
 		return
 	}
 
-	if err := h.levelRepo.DeleteLevel(req.LevelId); err != nil {
+	if err := a.levelRepo.DeleteLevel(req.LevelId); err != nil {
 		writeJSON(w, http.StatusNotFound, api.ErrorResponse{Message: "level not found"})
 		return
 	}
@@ -117,14 +117,14 @@ func (h *ZalipuliApi) FinishLevel(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *ZalipuliApi) PostLevelsHint(w http.ResponseWriter, r *http.Request) {
+func (a *ZalipuliApi) PostLevelsHint(w http.ResponseWriter, r *http.Request) {
 	var req api.HintRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, api.ErrorResponse{Message: "invalid request body"})
 		return
 	}
 
-	level, err := h.levelRepo.GetLevel(req.LevelId)
+	level, err := a.levelRepo.GetLevel(req.LevelId)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, api.ErrorResponse{Message: "level not found"})
 		return

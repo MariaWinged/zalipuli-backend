@@ -46,6 +46,22 @@ func (p *Position) hash() {
 	p.Hash = strings.Join(strVials, "/")
 }
 
+func (p *Position) restoreVials() error {
+	strVials := strings.Split(p.Hash, "/")
+	p.Vials = make(Vials, len(strVials))
+
+	for i, strVial := range strVials {
+		vial, err := strconv.Atoi(strVial)
+		if err != nil {
+			return err
+		}
+
+		p.Vials[i] = Vial(vial)
+	}
+
+	return nil
+}
+
 func (p *Position) getStepVials(nextPosition *Position) (from Vial, to Vial) {
 	changes := make([]int, 0, 2)
 
